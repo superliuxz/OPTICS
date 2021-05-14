@@ -32,27 +32,27 @@ class OPTICS:
     self.processed = [False] * self.N
     self.dist_mat = get_dist_mat(self.data)
 
-  def get_core_dist(self, p):
+  def _get_core_dist(self, p):
     return sorted(self.dist_mat[p])[self.min_pts]
 
-  def get_reachability_dist(self, o, p):
+  def _get_reachability_dist(self, o, p):
     return max(self.core_dist[p], euclidean_distance(self.data[p], self.data[o]))
 
-  def update(self, p, seeds):
-    self.core_dist[p] = self.get_core_dist(p)
+  def _update(self, p, seeds):
+    self.core_dist[p] = self._get_core_dist(p)
     for o in range(self.N):
       if self.processed[o]:
         continue
-      new_reach_dist = self.get_reachability_dist(o, p)
+      new_reach_dist = self._get_reachability_dist(o, p)
       if self.reachability_dist[o] == float("inf"):
         self.reachability_dist[o] = new_reach_dist
-        seeds.append((o, new_reach_dist))
-        seeds.sort(key=lambda x: x[1], reverse=True)
+        seeds.append((new_reach_dist, o))
+        seeds.sort(reverse=True)
       elif new_reach_dist < self.reachability_dist[o]:
-        seeds.remove((o, self.reachability_dist[o]))
+        seeds.remove((self.reachability_dist[o], o))
         self.reachability_dist[o] = new_reach_dist
-        seeds.append((o, new_reach_dist))
-        seeds.sort(key=lambda x: x[1], reverse=True)
+        seeds.append((new_reach_dist, o))
+        seeds.sort(reverse=True)
 
   def run(self):
     for p in range(self.N):
@@ -61,17 +61,17 @@ class OPTICS:
       self.processed[p] = True
       self.order.append(p)
       if self.core_dist[p] == float("inf"):
-        self.core_dist[p] = self.get_core_dist(p)
+        self.core_dist[p] = self._get_core_dist(p)
       seeds = list()
-      self.update(p, seeds)
+      self._update(p, seeds)
       while seeds:
-        q, _ = seeds[-1]
+        _, q = seeds[-1]
         seeds.pop()
         self.processed[q] = True
         self.order.append(q)
         if self.core_dist[q] == float("inf"):
-          self.core_dist[q] = self.get_core_dist(q)
-        self.update(q, seeds)
+          self.core_dist[q] = self._get_core_dist(q)
+        self._update(q, seeds)
 
     # TODO
     def extract_cluster_xi(xi):
