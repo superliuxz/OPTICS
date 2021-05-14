@@ -1,3 +1,4 @@
+import heapq
 import math
 import sys
 from timeit import default_timer as timer
@@ -24,8 +25,8 @@ def _get_dist_mat(points):
 
 
 def _get_core_dist(dist_mat, p, min_pts):
-  dist_mat[p].sort()
-  return dist_mat[p][min_pts]
+  heapq.heapify(dist_mat[p])
+  return heapq.nsmallest(min_pts, dist_mat[p])[-1]
 
 
 class OPTICS:
