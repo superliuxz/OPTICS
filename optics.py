@@ -1,58 +1,61 @@
 import math
-import numpy as np
-from sklearn.cluster import OPTICS as OPTICS_SKL
 import sys
-import matplotlib.pyplot as plt
+from timeit import default_timer as timer
 
+import matplotlib.pyplot as plt
+import numpy as np
+from bintrees import FastRBTree
+from sklearn.cluster import OPTICS as OPTICS_SKL
 
 np.random.seed(0)
 
 
-def euclidean_distance(p1, p2):
+def _euclidean_distance(p1, p2):
   return math.sqrt(math.pow(p1[0] - p2[0], 2) + math.pow(p1[1] - p2[1], 2))
 
 
-def get_dist_mat(data):
-  N = len(data)
-  dist_mat = [[0.0]*N for _ in range(N)]
+def _get_dist_mat(points):
+  N = len(points)
+  dist_mat = [[0.0] * N for _ in range(N)]
   for i in range(N):
-    for j in range(i+1, N):
-      dist_mat[i][j] = dist_mat[j][i] = euclidean_distance(data[i], data[j])
+    for j in range(i + 1, N):
+      dist_mat[i][j] = dist_mat[j][i] = _euclidean_distance(points[i], points[j])
   return dist_mat
 
 
+def _get_core_dist(dist_mat, p, min_pts):
+  dist_mat[p].sort()
+  return dist_mat[p][min_pts]
+
+
 class OPTICS:
-  def __init__(self, data, min_pts):
+  def __init__(self, points, min_pts):
     self.min_pts = min_pts
-    self.data = data
-    self.N = len(data)
+    self.points = points
+    self.N = len(points)
     self.order = list()
     self.reachability_dist = [float("inf")] * self.N
     self.core_dist = [float("inf")] * self.N
     self.processed = [False] * self.N
-    self.dist_mat = get_dist_mat(self.data)
-
-  def _get_core_dist(self, p):
-    return sorted(self.dist_mat[p])[self.min_pts]
+    dist_mat = _get_dist_mat(self.points)
+    for p in range(self.N):
+      self.core_dist[p] = _get_core_dist(dist_mat, p, self.min_pts)
 
   def _get_reachability_dist(self, o, p):
-    return max(self.core_dist[p], euclidean_distance(self.data[p], self.data[o]))
+    return max(self.core_dist[p], _euclidean_distance(self.points[p], self.points[o]))
 
-  def _update(self, p, seeds):
-    self.core_dist[p] = self._get_core_dist(p)
-    for o in range(self.N):
+  def _update(self, p, seeds: FastRBTree):
+    for o in range(self.N):  # since eps is INF, the neighbours are all the points in the dataset.
       if self.processed[o]:
         continue
       new_reach_dist = self._get_reachability_dist(o, p)
       if self.reachability_dist[o] == float("inf"):
         self.reachability_dist[o] = new_reach_dist
-        seeds.append((new_reach_dist, o))
-        seeds.sort(reverse=True)
+        seeds.insert((new_reach_dist, o), (new_reach_dist, o))
       elif new_reach_dist < self.reachability_dist[o]:
         seeds.remove((self.reachability_dist[o], o))
         self.reachability_dist[o] = new_reach_dist
-        seeds.append((new_reach_dist, o))
-        seeds.sort(reverse=True)
+        seeds.insert((new_reach_dist, o), (new_reach_dist, o))
 
   def run(self):
     for p in range(self.N):
@@ -60,22 +63,18 @@ class OPTICS:
         continue
       self.processed[p] = True
       self.order.append(p)
-      if self.core_dist[p] == float("inf"):
-        self.core_dist[p] = self._get_core_dist(p)
-      seeds = list()
+      seeds = FastRBTree()
       self._update(p, seeds)
       while seeds:
-        _, q = seeds[-1]
-        seeds.pop()
+        # pop_min returns the (key, val), and both key & val being (reachability, point_idx).
+        (_, q), (__, ___) = seeds.pop_min()
         self.processed[q] = True
         self.order.append(q)
-        if self.core_dist[q] == float("inf"):
-          self.core_dist[q] = self._get_core_dist(q)
         self._update(q, seeds)
 
-    # TODO
-    def extract_cluster_xi(xi):
-      pass
+  # TODO
+  def extract_cluster_xi(self, xi):
+    pass
 
 
 if __name__ == "__main__":
@@ -93,12 +92,16 @@ if __name__ == "__main__":
   else:
     raise Exception("'python3 optics k' or 'python3 optics.py <input> k'")
 
+  start = timer()
   algo = OPTICS(data, min_samples)
   algo.run()
+  print("my impl:", timer() - start)
   # print(algo.order)
 
+  start = timer()
   algo2 = OPTICS_SKL(min_samples=min_samples)
   algo2.fit(np.array(data))
+  print("sklearn impl:", timer() - start)
   # print(list(algo2.ordering_))
 
   plt.figure(figsize=(10, 7))
