@@ -1,4 +1,3 @@
-import heapq
 import math
 import sys
 from timeit import default_timer as timer
@@ -6,6 +5,7 @@ from timeit import default_timer as timer
 import matplotlib.pyplot as plt
 import numpy as np
 from bintrees import FastRBTree
+from scipy.spatial import distance_matrix
 from sklearn.cluster import OPTICS as OPTICS_SKL
 
 np.random.seed(0)
@@ -15,32 +15,23 @@ def _euclidean_distance(p1, p2):
   return math.sqrt(math.pow(p1[0] - p2[0], 2) + math.pow(p1[1] - p2[1], 2))
 
 
-def _get_dist_mat(points):
-  N = len(points)
-  dist_mat = [[0.0] * N for _ in range(N)]
-  for i in range(N):
-    for j in range(i + 1, N):
-      dist_mat[i][j] = dist_mat[j][i] = _euclidean_distance(points[i], points[j])
-  return dist_mat
-
-
-def _get_core_dist(dist_mat, p, min_pts):
-  heapq.heapify(dist_mat[p])
-  return heapq.nsmallest(min_pts, dist_mat[p])[-1]
-
-
 class OPTICS:
   def __init__(self, points, min_pts):
     self.min_pts = min_pts
     self.points = points
     self.N = len(points)
     self.order = list()
-    self.reachability_dist = [float("inf")] * self.N
-    self.core_dist = [float("inf")] * self.N
-    self.processed = [False] * self.N
-    dist_mat = _get_dist_mat(self.points)
+
+    self.reachability_dist = np.empty(self.N)
+    self.reachability_dist.fill(np.inf)
+
+    self.core_dist = np.empty(self.N)
+    self.core_dist.fill(np.inf)
+    dist_mat = distance_matrix(points, points)
     for p in range(self.N):
-      self.core_dist[p] = _get_core_dist(dist_mat, p, self.min_pts)
+      self.core_dist[p] = np.partition(dist_mat[p], self.min_pts)[self.min_pts]
+
+    self.processed = np.zeros(self.N, dtype=bool)
 
   def _get_reachability_dist(self, o, p):
     return max(self.core_dist[p], _euclidean_distance(self.points[p], self.points[o]))
@@ -50,13 +41,13 @@ class OPTICS:
       if self.processed[o]:
         continue
       new_reach_dist = self._get_reachability_dist(o, p)
-      if self.reachability_dist[o] == float("inf"):
+      if self.reachability_dist[o] == np.inf:
         self.reachability_dist[o] = new_reach_dist
-        seeds.insert((new_reach_dist, o), (new_reach_dist, o))
+        seeds.insert((new_reach_dist, o), o)
       elif new_reach_dist < self.reachability_dist[o]:
         seeds.remove((self.reachability_dist[o], o))
         self.reachability_dist[o] = new_reach_dist
-        seeds.insert((new_reach_dist, o), (new_reach_dist, o))
+        seeds.insert((new_reach_dist, o), o)
 
   def run(self):
     for p in range(self.N):
@@ -67,8 +58,8 @@ class OPTICS:
       seeds = FastRBTree()
       self._update(p, seeds)
       while seeds:
-        # pop_min returns the (key, val), and both key & val being (reachability, point_idx).
-        (_, q), (__, ___) = seeds.pop_min()
+        # pop_min returns ( (reachability, q), q ).
+        _, q = seeds.pop_min()
         self.processed[q] = True
         self.order.append(q)
         self._update(q, seeds)

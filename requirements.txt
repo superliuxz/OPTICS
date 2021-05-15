@@ -2,3 +2,4 @@ bintrees==2.2.0
 matplotlib==3.4.2
 scikit-learn==0.24.2
 numpy==1.20.3
+scipy==1.6.3
