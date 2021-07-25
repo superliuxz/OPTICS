@@ -64,7 +64,9 @@ class OPTICS:
         self.order.append(q)
         self._update(q, seeds)
 
+    start = timer()
     self._extract_cluster_xi()
+    print("extract cluster took", timer() - start)
 
   def _extract_cluster_xi(self):
     reachability_plot = self.reachability_dist[self.order]
@@ -221,6 +223,13 @@ class OPTICS:
 
 
 if __name__ == "__main__":
+  a = np.array([-0.999984, -0.0826997, -0.905911, 0.869386, 0.661931,
+                -0.736924, 0.0655345, 0.357729, -0.232996, -0.930856,
+                0.511211, -0.562082, 0.358593, 0.0388328, -0.893077, ])
+  a.resize((3, 5))
+  print(a)
+  print(np.var(a, axis=0))
+  print(np.mean(np.var(a, axis=0)) * 0.01)
   if len(sys.argv) == 2:
     n_points_per_cluster = 500
 
